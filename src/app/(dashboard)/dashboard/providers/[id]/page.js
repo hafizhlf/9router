@@ -64,6 +64,7 @@ export default function ProviderDetailPage() {
   const [bulkUpdatingProxy, setBulkUpdatingProxy] = useState(false);
   const [providerStrategy, setProviderStrategy] = useState(null);
   const [providerStickyLimit, setProviderStickyLimit] = useState("");
+  const [stallTimeoutMs, setStallTimeoutMs] = useState("");
   const [thinkingMode, setThinkingMode] = useState("auto");
   const [autoPing, setAutoPing] = useState({ enabled: false, connections: {} });
   const [suggestedModels, setSuggestedModels] = useState([]);
@@ -312,6 +313,7 @@ export default function ProviderDetailPage() {
       const override = (settingsData.providerStrategies || {})[providerId] || {};
       setProviderStrategy(override.fallbackStrategy || null);
       setProviderStickyLimit(override.stickyRoundRobinLimit != null ? String(override.stickyRoundRobinLimit) : "1");
+      setStallTimeoutMs(override.stallTimeoutMs != null ? String(override.stallTimeoutMs) : "");
       // Load per-provider thinking config
       const thinkingCfg = (settingsData.providerThinking || {})[providerId] || {};
       setThinkingMode(thinkingCfg.mode || "auto");
@@ -361,7 +363,7 @@ export default function ProviderDetailPage() {
     }
   };
 
-  const saveProviderStrategy = async (strategy, stickyLimit) => {
+  const saveProviderStrategy = async (strategy, stickyLimit, newStallTimeoutMs) => {
     try {
       const settingsRes = await fetch("/api/settings", { cache: "no-store" });
       const settingsData = settingsRes.ok ? await settingsRes.json() : {};
@@ -373,6 +375,8 @@ export default function ProviderDetailPage() {
       if (strategy === "round-robin" && stickyLimit !== "") {
         override.stickyRoundRobinLimit = Number(stickyLimit) || 3;
       }
+      // Handle stall timeout: empty string = use default (don't save), 0 = disabled, positive = custom ms
+      if (newStallTimeoutMs !== "") override.stallTimeoutMs = Number(newStallTimeoutMs);
 
       const updated = { ...current };
       if (Object.keys(override).length === 0) {
@@ -396,12 +400,17 @@ export default function ProviderDetailPage() {
     const sticky = enabled ? (providerStickyLimit || "1") : providerStickyLimit;
     if (enabled && !providerStickyLimit) setProviderStickyLimit("1");
     setProviderStrategy(strategy);
-    saveProviderStrategy(strategy, sticky);
+    saveProviderStrategy(strategy, sticky, stallTimeoutMs);
   };
 
   const handleStickyLimitChange = (value) => {
     setProviderStickyLimit(value);
-    saveProviderStrategy("round-robin", value);
+    saveProviderStrategy("round-robin", value, stallTimeoutMs);
+  };
+
+  const handleStallTimeoutChange = (value) => {
+    setStallTimeoutMs(value);
+    saveProviderStrategy(providerStrategy, providerStickyLimit, value);
   };
 
   const saveThinkingConfig = async (mode) => {
@@ -1487,6 +1496,21 @@ export default function ProviderDetailPage() {
                     />
                   </div>
                 )}
+              </div>
+              {/* Stall Timeout */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-text-muted font-medium">Stall Timeout (ms)</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1000}
+                  value={stallTimeoutMs}
+                  onChange={(e) => handleStallTimeoutChange(e.target.value)}
+                  placeholder="60000"
+                  className="w-28 px-2 py-1 text-xs border border-border rounded-md bg-background focus:outline-none focus:border-primary"
+                  title="0 = disabled, empty = default (60s)"
+                />
+                <span className="text-xs text-text-muted">0 = disabled, empty = default (60s)</span>
               </div>
             </div>
           </div>
