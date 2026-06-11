@@ -199,6 +199,8 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
     if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
   };
   const armStall = () => {
+    // [CUSTOM] stall detection disabled entirely when timeout is 0
+    if (stallTimeoutMs === 0) return;
     clearStall();
     stallTimer = setTimeout(() => {
       stallTimer = null;
@@ -222,7 +224,8 @@ export function pipeWithDisconnect(providerResponse, transformStream, streamCont
   };
 
   armStall();
-  dbg(tag, `pipe start | stallTimeout=${stallTimeoutMs}ms`);
+  // [CUSTOM] show "disabled" when stall detection is off (timeout === 0)
+  dbg(tag, `pipe start | stallTimeout=${stallTimeoutMs === 0 ? "disabled" : `${stallTimeoutMs}ms`}`);
 
   const upstreamTap = new TransformStream({
     transform(chunk, controller) {
