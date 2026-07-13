@@ -60,10 +60,14 @@ export async function handleChatCore({ body, modelInfo, credentials, log, onCred
   const alias = PROVIDER_ID_TO_ALIAS[provider] || provider;
   const modelTargetFormat = getModelTargetFormat(alias, model);
   // [CUSTOM] connection-level outputFormat override (e.g. "openai" forces OpenAI upstream)
+  // Wins over model-level targetFormat so the user's explicit per-connection setting isn't
+  // silently overridden by registry entries like { targetFormat: "claude" }.
   const outputFormat = credentials?.providerSpecificData?.outputFormat || null;
   // Multi-endpoint providers: pick transport matching sourceFormat → zero translation
   const runtimeTransport = resolveTransport(provider, sourceFormat, outputFormat);
-  const targetFormat = modelTargetFormat || runtimeTransport?.format || getTargetFormat(provider, credentials);
+  const targetFormat = outputFormat
+    ? runtimeTransport?.format || getTargetFormat(provider, credentials)
+    : (modelTargetFormat || runtimeTransport?.format || getTargetFormat(provider, credentials));
   if (runtimeTransport && credentials) credentials.runtimeTransport = runtimeTransport;
   const stripList = getModelStrip(alias, model);
   const upstreamModel = getModelUpstreamId(alias, model);
