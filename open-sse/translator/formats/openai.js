@@ -87,7 +87,20 @@ export function filterToOpenAIFormat(body, opts = {}) {
     body.tools = body.tools.map(tool => {
       // Already OpenAI format
       if (tool.type === OPENAI_BLOCK.FUNCTION && tool.function) return tool;
-      
+
+      // Bare-function shape from real-world clients (no parent `type`):
+      //   { function: { name, description, parameters } }
+      // Mirrors the fix in openai-to-claude.js for MiniMax M3 (#2435):
+      // gateways reject payloads where this branch falls through with
+      // `type === undefined`, returning upstream code (2013)
+      // "invalid tool type".
+      if (tool.function && (tool.type === undefined || tool.type === "")) {
+        return {
+          type: OPENAI_BLOCK.FUNCTION,
+          function: tool.function,
+        };
+      }
+
       // Claude format: {name, description, input_schema}
       if (tool.name && (tool.input_schema || tool.description)) {
         return {
@@ -99,7 +112,7 @@ export function filterToOpenAIFormat(body, opts = {}) {
           }
         };
       }
-      
+
       // Gemini format: {functionDeclarations: [{name, description, parameters}]}
       if (tool.functionDeclarations && Array.isArray(tool.functionDeclarations)) {
         return tool.functionDeclarations.map(fn => ({
@@ -111,7 +124,7 @@ export function filterToOpenAIFormat(body, opts = {}) {
           }
         }));
       }
-      
+
       return tool;
     }).flat();
   }
