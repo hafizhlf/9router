@@ -601,7 +601,25 @@ async function testApiKeyConnection(connection, effectiveProxy = null) {
       }
       case "minimax":
       case "minimax-cn": {
-        const endpoints = { minimax: "https://api.minimax.io/anthropic/v1/messages", "minimax-cn": "https://api.minimaxi.com/anthropic/v1/messages" };
+        const endpoints = {
+          minimax: "https://api.minimax.io/anthropic/v1/messages",
+          "minimax-cn": "https://api.minimaxi.com/anthropic/v1/messages",
+        };
+        const openaiEndpoints = {
+          minimax: "https://api.minimax.io/v1/chat/completions",
+          "minimax-cn": "https://api.minimaxi.com/v1/chat/completions",
+        };
+        // [CUSTOM] hafizhlf: respect connection-level outputFormat override
+        const outputFormat = connection.providerSpecificData?.outputFormat;
+        if (outputFormat === "openai") {
+          const res = await fetchWithConnectionProxy(openaiEndpoints[connection.provider], {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${connection.apiKey}`, "content-type": "application/json" },
+            body: JSON.stringify({ model: "minimax-m2", max_tokens: 1, messages: [{ role: "user", content: "test" }] }),
+          }, effectiveProxy);
+          const valid = res.status !== 401 && res.status !== 403;
+          return { valid, error: valid ? null : "Invalid API key" };
+        }
         const res = await fetchWithConnectionProxy(endpoints[connection.provider], {
           method: "POST",
           headers: { "x-api-key": connection.apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },

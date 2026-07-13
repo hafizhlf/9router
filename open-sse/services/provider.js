@@ -124,8 +124,13 @@ function getProviderConfig(provider) {
   return PROVIDERS[provider] || PROVIDERS.openai;
 }
 
-// Get target format for provider
-export function getTargetFormat(provider) {
+// Get target format for provider, optionally overriding via connection-level outputFormat
+export function getTargetFormat(provider, credentials = null) {
+  const outputFormat = credentials?.providerSpecificData?.outputFormat;
+  // [CUSTOM] hafizhlf: honor connection-level outputFormat override for supported providers
+  if (outputFormat === "openai" && (provider === "minimax" || provider === "minimax-cn")) {
+    return "openai";
+  }
   if (isOpenAICompatible(provider)) {
     return getOpenAICompatibleType(provider) === "responses" ? "openai-responses" : "openai";
   }
@@ -139,10 +144,17 @@ export function getTargetFormat(provider) {
 // Resolve which transport to use for a provider given the client sourceFormat.
 // Multi-endpoint providers (transport.transports[]) pick the entry matching sourceFormat
 // to avoid lossy translation; falls back to the default transport when no match.
-export function resolveTransport(provider, sourceFormat) {
+// [CUSTOM] hafizhlf: when outputFormat is set (e.g. outputFormat="openai"), the transport
+// matching outputFormat is picked instead of sourceFormat. This forces a single
+// upstream protocol per connection, regardless of incoming client format.
+export function resolveTransport(provider, sourceFormat, outputFormat = null) {
   const config = PROVIDERS[provider];
   const transports = config?.transports;
   if (!Array.isArray(transports) || !transports.length) return null;
+  if (outputFormat) {
+    const override = transports.find(t => t.format === outputFormat);
+    if (override) return override;
+  }
   return transports.find(t => t.format === sourceFormat) || null;
 }
 

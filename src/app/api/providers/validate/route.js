@@ -306,11 +306,17 @@ export async function POST(request) {
         case "agentrouter": {
           // Use baseUrl from PROVIDERS (DRY); separate openai-format vs claude-format flow
           const cfg = PROVIDERS[provider];
-          const isOpenAiFormat = provider === "glm-cn" || provider === "alicode" || provider === "alicode-intl" || provider === "alims-intl";
+          const isOpenAiFormat = provider === "glm-cn" || provider === "alicode" || provider === "alicode-intl" || provider === "alims-intl"
+            // [CUSTOM] hafizhlf: connection-level outputFormat override forces openai for these providers
+            || ((provider === "minimax" || provider === "minimax-cn") && body?.providerSpecificData?.outputFormat === "openai");
 
           if (isOpenAiFormat) {
             const testModel = getDefaultModel(provider);
-            const res = await fetch(cfg.baseUrl, {
+            // [CUSTOM] for minimax/minimax-cn with outputFormat=openai, use openaiBaseUrl
+            const url = ((provider === "minimax" || provider === "minimax-cn") && cfg.openaiBaseUrl)
+              ? cfg.openaiBaseUrl
+              : cfg.baseUrl;
+            const res = await fetch(url, {
               method: "POST",
               headers: { "Authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
               body: JSON.stringify({ model: testModel, max_tokens: 1, messages: [{ role: "user", content: "test" }] }),

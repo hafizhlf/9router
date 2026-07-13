@@ -17,6 +17,8 @@ export default {
   category: "apikey",
   transport: {
     baseUrl: "https://api.minimax.io/anthropic/v1/messages",
+    // [CUSTOM] openaiBaseUrl — used when connection-level outputFormat="openai"
+    openaiBaseUrl: "https://api.minimax.io/v1/chat/completions",
     format: "claude",
     urlSuffix: "?beta=true",
     headers: { ...CLAUDE_API_HEADERS },
@@ -38,6 +40,8 @@ export default {
       ],
     },
   },
+  // [CUSTOM] hasProviderSpecificData — Edit Connection shows Output Format dropdown
+  hasProviderSpecificData: true,
   // Multi-endpoint: pick the transport matching client sourceFormat to skip translation.
   transports: [
     {

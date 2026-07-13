@@ -23,6 +23,8 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   });
   const [cloudflareData, setCloudflareData] = useState({ accountId: "" });
   const [region, setRegion] = useState("");
+  // [CUSTOM] hafizhlf: connection-level output format override (minimax/minimax-cn)
+  const [outputFormat, setOutputFormat] = useState("claude");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState(null);
   const [validating, setValidating] = useState(false);
@@ -48,6 +50,10 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       if (connection.provider === "cloudflare-ai" && connection.providerSpecificData) {
         setCloudflareData({ accountId: connection.providerSpecificData.accountId || "" });
       }
+      // [CUSTOM] hafizhlf: load output format override for minimax/minimax-cn
+      if ((connection.provider === "minimax" || connection.provider === "minimax-cn") && connection.providerSpecificData) {
+        setOutputFormat(connection.providerSpecificData.outputFormat || "claude");
+      }
       // Load region for providers that support it (e.g. xiaomi-tokenplan)
       const providerCfg = AI_PROVIDERS?.[connection.provider];
       if (providerCfg?.regions) {
@@ -62,6 +68,8 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const isOAuth = connection?.authType === "oauth";
   const isAzure = connection?.provider === "azure";
   const isCloudflareAi = connection?.provider === "cloudflare-ai";
+  // [CUSTOM] hafizhlf: providers with configurable output format
+  const isOutputFormatProvider = connection?.provider === "minimax" || connection?.provider === "minimax-cn";
   const isCompatible = connection
     ? (isOpenAICompatibleProvider(connection.provider) || isAnthropicCompatibleProvider(connection.provider))
     : false;
@@ -71,6 +79,12 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
   const buildRegionSpecificData = () => {
     if (providerRegions && region) return { ...((connection?.providerSpecificData) || {}), region };
     return undefined;
+  };
+
+  // [CUSTOM] hafizhlf: merge outputFormat into existing providerSpecificData for these providers
+  const buildOutputFormatSpecificData = () => {
+    if (!isOutputFormatProvider) return undefined;
+    return { ...((connection?.providerSpecificData) || {}), outputFormat };
   };
 
   const handleTest = async () => {
@@ -102,6 +116,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           ...(isAzure ? { providerSpecificData: azureData } : {}),
           ...(isCloudflareAi ? { providerSpecificData: cloudflareData } : {}),
           ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
+          ...(isOutputFormatProvider ? { providerSpecificData: buildOutputFormatSpecificData() } : {}),
         }),
       });
       const data = await res.json();
@@ -137,6 +152,7 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
                 ...(isAzure ? { providerSpecificData: azureData } : {}),
                 ...(isCloudflareAi ? { providerSpecificData: cloudflareData } : {}),
                 ...(providerRegions ? { providerSpecificData: buildRegionSpecificData() } : {}),
+                ...(isOutputFormatProvider ? { providerSpecificData: buildOutputFormatSpecificData() } : {}),
               }),
             });
             const data = await res.json();
@@ -171,7 +187,11 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
       if (providerRegions && region) {
         updates.providerSpecificData = buildRegionSpecificData();
       }
-      
+      // [CUSTOM] hafizhlf: persist outputFormat override for minimax/minimax-cn
+      if (isOutputFormatProvider) {
+        updates.providerSpecificData = buildOutputFormatSpecificData();
+      }
+
       await onSave(updates);
     } finally {
       setSaving(false);
@@ -273,7 +293,29 @@ export default function EditConnectionModal({ isOpen, connection, proxyPools, on
           />
         )}
 
-        {!isCompatible && !isAzure && !isCloudflareAi && (
+        {isOutputFormatProvider && (
+          <div className="bg-sidebar/50 p-4 rounded-lg border border-accent/20">
+            <h3 className="font-semibold mb-3 text-sm">Minimax Configuration</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-text-muted">Output Format</label>
+                <select
+                  value={outputFormat}
+                  onChange={(e) => setOutputFormat(e.target.value)}
+                  className="w-full px-3 py-2 bg-background border border-accent/20 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/40"
+                >
+                  <option value="claude">Claude (Anthropic) — Default</option>
+                  <option value="openai">OpenAI Compatible</option>
+                </select>
+                <p className="text-xs text-text-muted">
+                  Choose the upstream API protocol. Claude format uses the Anthropic Messages endpoint. OpenAI format uses the Chat Completions endpoint and translates requests/responses accordingly.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!isCompatible && !isAzure && !isCloudflareAi && !isOutputFormatProvider && (
           <div className="flex items-center gap-3">
             <Button onClick={handleTest} variant="secondary" disabled={testing}>
               {testing ? "Testing..." : "Test Connection"}
